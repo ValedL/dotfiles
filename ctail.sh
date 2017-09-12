@@ -1,0 +1,99 @@
+#!/bin/bash
+
+###############################################################################
+# Author: Radu Cotescu <radu@cotescu.com>                                     #
+#                                                                             #
+# ctail is a small configurable Bash script which can colour log entries      #
+# outputted through tail. It actually wraps tail, piping its output through   #
+# an awk script that colorizes the output according to log severity levels.   #
+#                                                                             #
+# NOTE: On Mac OS X you must replace line 1 of the script with the location   #
+# where you have installed Bash 4. Bash 3 (which comes by default on Mac OS X)#
+# does not support associative arrays.                                        #
+###############################################################################
+
+if ! TAIL=$(which tail); then
+    echo -e "Cannot find tail executable.\n"
+    exit 1
+fi
+if ! AWK=$(which awk); then
+    echo -e "Cannot find awk executable.\n"
+    exit 1
+fi
+
+declare -A log
+log["INFO"]="BWhite"
+log["ERROR"]="BRed"
+log["WARN"]="BYellow"
+log["DEBUG"]="BGreen"
+
+# keep original behaviour; hide lines that does not match any of the pattern
+: ${print_lines_not_matched:=0}
+
+# keeping the original behaviour; load config from the ctail script's directory
+CWD=`dirname $0`
+if [[ -f "$CWD/ctail.config" ]]; then
+    source "$CWD/ctail.config"
+fi
+
+# if there is a config in $HOME, load that
+if [[ -f "$HOME/ctail.config" ]]; then
+    source "$HOME/ctail.config"
+fi
+
+# if there is a config in current directory, load that too
+if [[ -f "./ctail.config" ]]; then
+    source "./ctail.config"
+fi
+
+declare -A colours
+# Regular
+colours["Black"]="\033[0;30m"
+colours["Red"]="\033[0;31m"
+colours["Green"]="\033[0;32m"
+colours["Yellow"]="\033[0;33m"
+colours["Blue"]="\033[0;34m"
+colours["Purple"]="\033[0;35m"
+colours["Cyan"]="\033[0;36m"
+colours["White"]="\033[0;37m"
+#Bold
+colours["BBlack"]="\033[1;30m"
+colours["BRed"]="\033[1;31m"
+colours["BGreen"]="\033[1;32m"
+colours["BYellow"]="\033[1;33m"
+colours["BBlue"]="\033[1;34m"
+colours["BPurple"]="\033[1;35m"
+colours["BCyan"]="\033[1;36m"
+colours["BWhite"]="\033[1;37m"
+# High Intensity
+colours["IBlack"]="\033[0;90m"
+colours["IRed"]="\033[0;91m"
+colours["IGreen"]="\033[0;92m"
+colours["IYellow"]="\033[0;93m"
+colours["IBlue"]="\033[0;94m"
+colours["IPurple"]="\033[0;95m"
+colours["ICyan"]="\033[0;96m"
+colours["IWhite"]="\033[0;97m"
+# Bold High Intensity
+colours["BIBlack"]="\033[1;90m"
+colours["BIRed"]="\033[1;91m"
+colours["BIGreen"]="\033[1;92m"
+colours["BIYellow"]="\033[1;93m"
+colours["BIBlue"]="\033[1;94m"
+colours["BIPurple"]="\033[1;95m"
+colours["BICyan"]="\033[1;96m"
+colours["BIWhite"]="\033[1;97m"
+
+awk_script()
+{
+	for i in "${!log[@]}"; do
+		echo "/$i/ {print \"${colours[${log[$i]}]}\" \$0 \"\033[39m\"; next;}"
+	done
+
+	if [[ "$print_lines_not_matched" == "1" ]]; then
+        # let us not miss anything that did not match any of the above colourisation rules
+        echo '{print $0}'
+    fi
+}
+
+$AWK -f <(awk_script) <($TAIL "$@")
